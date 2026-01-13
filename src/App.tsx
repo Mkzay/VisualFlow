@@ -98,50 +98,59 @@ function App() {
     setIsProcessing(false);
   };
 
-  const handleSelectVideo = (sceneId: number, video: VideoResult) => {
-    setParsedScenes((prev) =>
-      prev.map((s) => (s.id === sceneId ? { ...s, selectedVideo: video } : s))
-    );
-  };
+  const handleSelectVideo = useCallback(
+    (sceneId: number, video: VideoResult) => {
+      setParsedScenes((prev) =>
+        prev.map((s) => (s.id === sceneId ? { ...s, selectedVideo: video } : s))
+      );
+    },
+    []
+  );
 
-  const handleLoadMore = async (sceneId: number) => {
-    setLoadingSceneIds((prev) => ({ ...prev, [sceneId]: true }));
-    const scene = parsedScenes.find((s) => s.id === sceneId);
-    if (!scene) return;
+  const handleLoadMore = useCallback(
+    async (sceneId: number, query: string, currentPage: number) => {
+      setLoadingSceneIds((prev) => ({ ...prev, [sceneId]: true }));
 
-    const nextPage = scene.page + 1;
-    const newVideos = await searchVideos(
-      scene.query,
-      globalVibe,
-      globalOrientation,
-      apiKeys,
-      nextPage
-    );
+      const nextPage = currentPage + 1;
+      const newVideos = await searchVideos(
+        query,
+        globalVibe,
+        globalOrientation,
+        apiKeys,
+        nextPage
+      );
 
-    setParsedScenes((prev) =>
-      prev.map((s) =>
-        s.id === sceneId
-          ? {
-              ...s,
-              options: [...s.options, ...newVideos],
-              page: nextPage,
-            }
-          : s
-      )
-    );
-    setLoadingSceneIds((prev) => ({ ...prev, [sceneId]: false }));
-  };
+      setParsedScenes((prev) =>
+        prev.map((s) =>
+          s.id === sceneId
+            ? {
+                ...s,
+                options: [...s.options, ...newVideos],
+                page: nextPage,
+              }
+            : s
+        )
+      );
+      setLoadingSceneIds((prev) => ({ ...prev, [sceneId]: false }));
+    },
+    [globalVibe, globalOrientation, apiKeys]
+  );
 
-  const handleDurationChange = (sceneId: number, duration: number) => {
-    setParsedScenes((prev) =>
-      prev.map((s) => (s.id === sceneId ? { ...s, cutDuration: duration } : s))
-    );
-  };
+  const handleDurationChange = useCallback(
+    (sceneId: number, duration: number) => {
+      setParsedScenes((prev) =>
+        prev.map((s) =>
+          s.id === sceneId ? { ...s, cutDuration: duration } : s
+        )
+      );
+    },
+    []
+  );
 
-  const handleClear = () => {
+  const handleClear = useCallback(() => {
     setScript("");
     setParsedScenes([]);
-  };
+  }, [setScript]);
 
   // --- PLAYBACK LOGIC ---
 
