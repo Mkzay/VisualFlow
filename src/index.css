@@ -1,0 +1,50 @@
+@import "tailwindcss";
+@config "../tailwind.config.js";
+
+@layer base {
+  body {
+    @apply bg-vf-bg text-gray-200;
+    background-image: linear-gradient(
+        rgba(255, 255, 255, 0.03) 1px,
+        transparent 1px
+      ),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+
+  /* Custom Scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #050505;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #333;
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #ccff00;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-vf-lime text-black font-mono font-bold uppercase tracking-wider px-6 py-3 transition-all duration-100 ease-linear shadow-none hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[4px_4px_0px_rgba(255,255,255,0.2)] active:translate-x-0 active:translate-y-0 active:shadow-none;
+  }
+
+  .tech-panel {
+    @apply bg-vf-panel border border-vf-border;
+  }
+
+  .tech-input {
+    @apply bg-black border border-vf-border text-vf-lime font-mono p-4 focus:outline-none focus:border-vf-lime placeholder-gray-800;
+  }
+
+  .vibe-chip {
+    @apply border border-neutral-800 text-neutral-500 transition-all duration-200 px-2 py-1 text-[10px] font-mono uppercase rounded hover:text-white hover:border-neutral-600;
+  }
+  .vibe-chip.active {
+    @apply border-vf-lime text-vf-lime bg-[#ccff001a];
+  }
+}
