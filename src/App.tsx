@@ -63,6 +63,7 @@ const AppContent: React.FC = () => {
   const [playbackIndex, setPlaybackIndex] = useState(0);
   const [playbackProgress, setPlaybackProgress] = useState(0);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const [useTTS, setUseTTS] = useState(false);
 
   // Pagination / Loading States
@@ -243,21 +244,17 @@ const AppContent: React.FC = () => {
   // Simple interval playback controller (Centralized)
   useEffect(() => {
     let interval: ReturnType<typeof setInterval>;
-    if (isCinemaOpen && playbackQueue.length > 0) {
+    if (isCinemaOpen && playbackQueue.length > 0 && !isPaused) {
       // Current scene
       const currentScene = playbackQueue[playbackIndex];
       if (!currentScene) return;
 
       const durationMs = currentScene.cutDuration * 1000;
       const tickRate = 100; // Update progress every 100ms
-      let elapsed = 0;
+      let elapsed = (playbackProgress / 100) * durationMs; // Resume from current progress
 
-      // Reset progress on index change
-      setPlaybackProgress(0);
-
-      // TTS Trigger
+      // TTS Trigger (only on fresh start)
       if (useTTS && !isSpeaking && elapsed === 0) {
-        // Simple mock TTS trigger
         if ("speechSynthesis" in window) {
           const u = new SpeechSynthesisUtterance(currentScene.originalLine);
           u.onstart = () => setIsSpeaking(true);
@@ -274,10 +271,11 @@ const AppContent: React.FC = () => {
           // Next scene
           if (playbackIndex < playbackQueue.length - 1) {
             setPlaybackIndex((prev) => prev + 1);
-            elapsed = 0;
+            setPlaybackProgress(0);
           } else {
             // End
             setIsCinemaOpen(false);
+            setIsPaused(false);
             clearInterval(interval);
           }
         }
@@ -288,7 +286,15 @@ const AppContent: React.FC = () => {
       window.speechSynthesis.cancel();
       setIsSpeaking(false);
     };
-  }, [isCinemaOpen, playbackIndex, playbackQueue, useTTS, isSpeaking]);
+  }, [
+    isCinemaOpen,
+    playbackIndex,
+    playbackQueue,
+    useTTS,
+    isSpeaking,
+    isPaused,
+    playbackProgress,
+  ]);
 
   const handleExport = useCallback(async () => {
     if (parsedScenes.length === 0) return;
@@ -339,16 +345,33 @@ const AppContent: React.FC = () => {
 
       <CinemaModal
         isOpen={isCinemaOpen}
-        onClose={() => setIsCinemaOpen(false)}
+        onClose={() => {
+          setIsCinemaOpen(false);
+          setIsPaused(false);
+        }}
         currentScene={playbackQueue[playbackIndex] || null}
         currentVideo={playbackQueue[playbackIndex]?.selectedVideo}
-        currentAudio={playbackQueue[playbackIndex]?.selectedAudio} // NEW
+        currentAudio={playbackQueue[playbackIndex]?.selectedAudio}
         progress={playbackProgress}
         currentIndex={playbackIndex}
         totalCount={playbackQueue.length}
         useTTS={useTTS}
         onToggleTTS={() => setUseTTS(!useTTS)}
         isSpeaking={isSpeaking}
+        isPaused={isPaused}
+        onTogglePause={() => setIsPaused(!isPaused)}
+        onNext={() => {
+          if (playbackIndex < playbackQueue.length - 1) {
+            setPlaybackIndex(playbackIndex + 1);
+            setPlaybackProgress(0);
+          }
+        }}
+        onPrevious={() => {
+          if (playbackIndex > 0) {
+            setPlaybackIndex(playbackIndex - 1);
+            setPlaybackProgress(0);
+          }
+        }}
       />
 
       <main className="grow max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 sm:py-8 flex flex-col gap-8">

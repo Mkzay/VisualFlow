@@ -1,5 +1,13 @@
 import React, { useRef, useEffect } from "react";
-import { FaTimes, FaVolumeUp, FaMusic } from "react-icons/fa";
+import {
+  FaTimes,
+  FaVolumeUp,
+  FaMusic,
+  FaPlay,
+  FaPause,
+  FaStepForward,
+  FaStepBackward,
+} from "react-icons/fa";
 import type { VideoResult, Scene, AudioResult } from "../types";
 
 interface CinemaModalProps {
@@ -7,13 +15,18 @@ interface CinemaModalProps {
   onClose: () => void;
   currentScene: Scene | null;
   currentVideo: VideoResult | undefined;
-  currentAudio: AudioResult | undefined; // NEW
-  progress: number; // 0 to 100
+  currentAudio: AudioResult | undefined;
+  progress: number;
   currentIndex: number;
   totalCount: number;
   useTTS: boolean;
   onToggleTTS: () => void;
   isSpeaking: boolean;
+  // NEW: Playback controls
+  isPaused: boolean;
+  onTogglePause: () => void;
+  onNext: () => void;
+  onPrevious: () => void;
 }
 
 export const CinemaModal: React.FC<CinemaModalProps> = ({
@@ -28,35 +41,61 @@ export const CinemaModal: React.FC<CinemaModalProps> = ({
   useTTS,
   onToggleTTS,
   isSpeaking,
+  isPaused,
+  onTogglePause,
+  onNext,
+  onPrevious,
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
 
-  // Sync video source
+  // Sync video source and pause state
   useEffect(() => {
     if (isOpen && currentVideo && videoRef.current) {
       videoRef.current.src = currentVideo.videoSrc;
-      videoRef.current
-        .play()
-        .catch((e) => console.log("Video auto-play blocked", e));
+      if (!isPaused) {
+        videoRef.current
+          .play()
+          .catch((e) => console.log("Video auto-play blocked", e));
+      }
     } else if (!isOpen && videoRef.current) {
       videoRef.current.pause();
       videoRef.current.src = "";
     }
-  }, [currentVideo, isOpen]);
+  }, [currentVideo, isOpen, isPaused]);
+
+  // Pause/resume video when isPaused changes
+  useEffect(() => {
+    if (videoRef.current && isOpen) {
+      if (isPaused) {
+        videoRef.current.pause();
+      } else {
+        videoRef.current.play().catch(() => {});
+      }
+    }
+    if (audioRef.current && isOpen) {
+      if (isPaused) {
+        audioRef.current.pause();
+      } else {
+        audioRef.current.play().catch(() => {});
+      }
+    }
+  }, [isPaused, isOpen]);
 
   // Sync audio source
   useEffect(() => {
     if (isOpen && currentAudio && audioRef.current) {
       audioRef.current.src = currentAudio.previewUrl;
-      audioRef.current
-        .play()
-        .catch((e) => console.log("Audio auto-play blocked", e));
+      if (!isPaused) {
+        audioRef.current
+          .play()
+          .catch((e) => console.log("Audio auto-play blocked", e));
+      }
     } else if ((!isOpen || !currentAudio) && audioRef.current) {
       audioRef.current.pause();
       audioRef.current.src = "";
     }
-  }, [currentAudio, isOpen]);
+  }, [currentAudio, isOpen, isPaused]);
 
   if (!isOpen) return null;
 
@@ -87,8 +126,7 @@ export const CinemaModal: React.FC<CinemaModalProps> = ({
               ref={videoRef}
               className="w-full h-full object-contain"
               playsInline
-              muted // Mute video loops if we have TTS or it's B-roll? Usually B-roll is silent or we want ambient. Let's keep existing logic (unmuted often if no prop)
-              // Actually, previous implementation didn't specify muted.
+              loop
             />
           ) : (
             // Audio Scene Placeholder
@@ -120,6 +158,13 @@ export const CinemaModal: React.FC<CinemaModalProps> = ({
             ></div>
           </div>
 
+          {/* Paused Indicator */}
+          {isPaused && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/40 pointer-events-none">
+              <FaPause className="text-6xl text-white/70" />
+            </div>
+          )}
+
           {/* Speaking Indicator */}
           {isSpeaking && (
             <div className="absolute top-4 left-4 bg-black/50 backdrop-blur px-3 py-1 rounded text-vf-lime text-xs font-mono animate-pulse border border-vf-lime/30 flex items-center gap-2">
@@ -128,31 +173,79 @@ export const CinemaModal: React.FC<CinemaModalProps> = ({
           )}
         </div>
 
-        {/* Controls / Info */}
-        <div className="mt-6 flex flex-wrap justify-center items-center gap-4 text-neutral-400 font-mono text-xs w-full max-w-2xl">
-          <span>
-            CLIP {currentIndex + 1} / {totalCount}
+        {/* Playback Controls + Info Combined */}
+        <div className="mt-3 flex flex-wrap items-center justify-center gap-2 sm:gap-4">
+          {/* Prev */}
+          <button
+            onClick={onPrevious}
+            disabled={currentIndex === 0}
+            className="flex items-center gap-1 text-white hover:text-vf-lime disabled:text-neutral-700 transition-colors px-2 py-1.5 text-[10px] font-mono uppercase"
+            title="Previous Clip"
+          >
+            <FaStepBackward className="text-sm" />
+            <span className="hidden sm:inline">Prev</span>
+          </button>
+
+          {/* Play/Pause */}
+          <button
+            onClick={onTogglePause}
+            className="flex items-center gap-1.5 bg-vf-lime text-black hover:bg-white px-4 py-2 rounded-full transition-all shadow-[0_0_15px_rgba(204,255,0,0.3)] text-xs font-mono font-bold uppercase"
+            title={isPaused ? "Play" : "Pause"}
+          >
+            {isPaused ? (
+              <>
+                <FaPlay className="text-sm" />
+                <span>Play</span>
+              </>
+            ) : (
+              <>
+                <FaPause className="text-sm" />
+                <span>Pause</span>
+              </>
+            )}
+          </button>
+
+          {/* Next */}
+          <button
+            onClick={onNext}
+            disabled={currentIndex >= totalCount - 1}
+            className="flex items-center gap-1 text-white hover:text-vf-lime disabled:text-neutral-700 transition-colors px-2 py-1.5 text-[10px] font-mono uppercase"
+            title="Next Clip"
+          >
+            <span className="hidden sm:inline">Next</span>
+            <FaStepForward className="text-sm" />
+          </button>
+
+          <span className="text-neutral-700 mx-1">|</span>
+
+          {/* Clip Counter */}
+          <span className="text-neutral-400 font-mono text-[10px]">
+            Clip {currentIndex + 1}/{totalCount}
           </span>
-          <span className="text-neutral-600">|</span>
-          <div className="flex items-center gap-2">
+
+          <span className="text-neutral-700 mx-1 hidden sm:inline">|</span>
+
+          {/* TTS Toggle */}
+          <label
+            htmlFor="tts-toggle-modal"
+            className="flex items-center gap-1.5 cursor-pointer text-neutral-500 hover:text-white transition-colors text-[10px] font-mono"
+            title="Enable AI Voice Narrator to read scene text aloud"
+          >
             <input
               type="checkbox"
               id="tts-toggle-modal"
               checked={useTTS}
               onChange={onToggleTTS}
-              className="accent-vf-lime cursor-pointer"
+              className="accent-vf-lime cursor-pointer w-3 h-3"
             />
-            <label
-              htmlFor="tts-toggle-modal"
-              className="cursor-pointer hover:text-white transition-colors"
-              title="Enable AI Voice Narrator"
-            >
-              Voiceover On
-            </label>
-          </div>
-          <span className="text-neutral-600">|</span>
-          <span className="text-vf-lime">
-            SOURCE: {isAudioScene ? "FREESOUND" : currentVideo?.source || "..."}
+            <span>Voice Narration</span>
+          </label>
+
+          <span className="text-neutral-700 mx-1 hidden sm:inline">|</span>
+
+          {/* Source */}
+          <span className="text-vf-lime text-[10px] font-mono">
+            {isAudioScene ? "FREESOUND" : currentVideo?.source || "..."}
           </span>
         </div>
       </div>
