@@ -42,6 +42,17 @@ export default {
           "0%": { opacity: "0", transform: "translateY(10px)" },
           "100%": { opacity: "1", transform: "translateY(0)" },
         },
+        slideInRight: {
+          "0%": { opacity: "0", transform: "translateX(20px)" },
+          "100%": { opacity: "1", transform: "translateX(0)" },
+        },
+      },
+      animation: {
+        blink: "blink 0.8s infinite",
+        "pulse-purple": "pulse-purple 2s infinite",
+        "pulse-lime": "pulse-lime 2s infinite",
+        "fade-in": "fadeIn 0.3s ease-out forwards",
+        "slide-in-right": "slideInRight 0.3s ease-out forwards",
       },
     },
   },

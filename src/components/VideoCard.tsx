@@ -40,7 +40,7 @@ export const VideoCard: React.FC<VideoCardProps> = memo(
       <div
         className={`group relative ${aspectClass} bg-black cursor-pointer overflow-hidden border transition-all duration-200 animate-fade-in ${
           isSelected
-            ? "!border-vf-lime shadow-[0_0_20px_rgba(204,255,0,0.2)]"
+            ? "border-vf-lime! shadow-[0_0_20px_rgba(204,255,0,0.2)]"
             : "border-transparent hover:border-white"
         }`}
         onClick={onSelect}

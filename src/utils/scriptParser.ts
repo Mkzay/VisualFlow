@@ -1,3 +1,4 @@
+import { extractKeywords } from "../services/api";
 import type { Scene } from "../types";
 
 export const parseScript = (scriptText: string): Scene[] => {
@@ -5,37 +6,30 @@ export const parseScript = (scriptText: string): Scene[] => {
   const scenes: Scene[] = [];
   let idCounter = 0;
 
-  lines.forEach((line) => {
+  for (const line of lines) {
     const cleanLine = line.trim();
-    if (!cleanLine) return;
+    if (!cleanLine) continue;
 
-    // Skip metadata/narrator tags that aren't content
-    if (cleanLine.match(/^(Narrator:|Speaker:|\[Sound:|\(.*\)$)/i)) {
-      // Check if it's strictly a Sound cue formatted as Narrator line?
-      if (cleanLine.match(/^\[Sound:/i) || cleanLine.match(/^\(Sound:/i)) {
-        const content = cleanLine
-          .replace(/^\[Sound:\s*/i, "")
-          .replace(/\]$/, "")
-          .replace(/^\(Sound:\s*/i, "")
-          .replace(/\)$/, "");
-        scenes.push({
-          id: idCounter++,
-          originalLine: content,
-          type: "AUDIO",
-          query: "",
-          isAiGenerated: false,
-          options: [],
-          cutDuration: 0,
-          page: 1,
-        });
-      }
-      return;
+    // Check for [Sound: ...] tags
+    const soundMatch = cleanLine.match(/^\[Sound:\s*(.*?)\]$/i);
+    if (soundMatch) {
+      scenes.push({
+        id: idCounter++,
+        originalLine: cleanLine,
+        type: "AUDIO",
+        query: extractKeywords(soundMatch[1]), // Use extracted keywords as query
+        isAiGenerated: false,
+        cutDuration: 4,
+        options: [],
+        page: 1,
+      });
+      continue;
     }
 
-    // Skip short lines
-    if (cleanLine.length < 3) return;
+    // Skip short lines if not specific tags
+    if (cleanLine.length < 3) continue;
 
-    // Check for [Visuals: ...]
+    // Check for [Visuals: ...] tags
     const visualMatch = cleanLine.match(/\[Visuals:\s*(.*?)\]/i);
 
     let content = "";
@@ -54,14 +48,14 @@ export const parseScript = (scriptText: string): Scene[] => {
         id: idCounter++,
         originalLine: content,
         type: type,
-        query: "", // To be filled by API/Extraction later
+        query: extractKeywords(content), // Ensure query is populated
         isAiGenerated: false,
         options: [],
-        cutDuration: 4, // Default
+        cutDuration: 4,
         page: 1,
       });
     }
-  });
+  }
 
   return scenes;
 };

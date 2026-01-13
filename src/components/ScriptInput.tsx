@@ -43,26 +43,33 @@ export const ScriptInput: React.FC<ScriptInputProps> = ({
       <textarea
         value={script}
         onChange={(e) => onScriptChange(e.target.value)}
-        className="flex-grow w-full bg-[#0a0a0a] border-none p-4 sm:p-5 text-neutral-300 focus:outline-none resize-none font-mono text-xs leading-relaxed tracking-wide min-h-[120px] placeholder-neutral-700"
+        className="grow w-full bg-vf-panel border-none p-4 sm:p-5 text-neutral-300 focus:outline-none resize-none font-mono text-xs leading-relaxed tracking-wide min-h-[120px] placeholder-neutral-700"
         placeholder={`// Paste script...\n(0:00) THE HOOK [Visuals: Fast montage]\nNarrator: What if I told you...\n[Visuals: Glitch effect over city]`}
       />
 
       {/* Footer / Controls */}
       <div className="p-4 sm:p-5 border-t border-vf-border bg-black flex flex-wrap gap-4 items-center justify-between">
         {/* AI Toggle */}
-        <div
-          className="flex items-center gap-3 bg-[#111] p-2 border border-vf-border rounded"
-          title="Use AI to understand context (Requires Gemini Key)"
-        >
-          <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 bg-[#111] p-2 border border-vf-border rounded">
+          <div
+            className="flex items-center gap-2"
+            title="Finds metaphors instead of literal keywords"
+          >
             <FaMagic
               className={`${
-                useAI ? "text-vf-ai" : "text-neutral-500"
+                useAI ? "text-vf-ai animate-pulse-purple" : "text-neutral-500"
               } transition-colors duration-300`}
             />
-            <span className="text-xs font-bold text-neutral-300 uppercase font-mono">
-              Smart Vision AI
-            </span>
+            <div className="flex flex-col">
+              <span className="text-xs font-bold text-neutral-300 uppercase font-mono">
+                AI Director Mode
+              </span>
+              <span className="text-[9px] text-neutral-500 font-mono hidden sm:block">
+                {useAI
+                  ? "Finding visual metaphors..."
+                  : "Literal keyword search"}
+              </span>
+            </div>
           </div>
           <label className="relative inline-flex items-center cursor-pointer">
             <input
@@ -71,7 +78,7 @@ export const ScriptInput: React.FC<ScriptInputProps> = ({
               onChange={onToggleAI}
               className="sr-only peer"
             />
-            <div className="w-9 h-5 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-vf-ai"></div>
+            <div className="w-9 h-5 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-vf-ai shadow-[0_0_10px_rgba(217,70,239,0.3)]"></div>
           </label>
         </div>
 
@@ -79,7 +86,7 @@ export const ScriptInput: React.FC<ScriptInputProps> = ({
         <button
           onClick={onProcess}
           disabled={isProcessing}
-          className="btn-primary px-8 py-3 flex items-center justify-center gap-3 active:scale-95 transition-transform flex-grow sm:flex-grow-0 disabled:opacity-50 disabled:pointer-events-none min-w-[180px]"
+          className="btn-primary px-8 py-3 flex items-center justify-center gap-3 active:scale-95 transition-transform grow sm:grow-0 disabled:opacity-50 disabled:pointer-events-none min-w-[180px]"
           title="Analyze script and find footage"
         >
           {isProcessing ? (

@@ -1,101 +1,170 @@
-import { useState, useCallback, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Navbar } from "./components/Navbar";
 import { SettingsModal } from "./components/SettingsModal";
 import { ScriptInput } from "./components/ScriptInput";
 import { ControlBar } from "./components/ControlBar";
 import { ResultsGrid } from "./components/ResultsGrid";
 import { CinemaModal } from "./components/CinemaModal";
-import { useLocalStorage } from "./hooks/useLocalStorage";
-import { parseScript } from "./utils/scriptParser";
+import { ToastProvider, useToast } from "./context/ToastContext";
+import { ToastContainer } from "./components/ToastContainer";
 import {
-  searchVideos,
-  fetchGeminiQuery,
   extractKeywords,
+  fetchGeminiQuery,
+  searchVideos,
+  searchFreesound,
 } from "./services/api";
-import type { Scene, GlobalState, VideoResult } from "./types";
+import { parseScript } from "./utils/scriptParser";
+import { useLocalStorage } from "./hooks/useLocalStorage";
+import type {
+  VideoResult,
+  Orientation,
+  Vibe,
+  Scene,
+  ColorGrade,
+  ApiKeys,
+  EnabledSources,
+} from "./types";
 
-function App() {
-  // Global State
-  const [apiKeys, setApiKeys] = useLocalStorage("vf_api_keys", {
+const AppContent: React.FC = () => {
+  const { addToast } = useToast();
+  const [script, setScript] = useLocalStorage<string>("vf_script", "");
+  const [parsedScenes, setParsedScenes] = useState<Scene[]>([]);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [apiKeys, setApiKeys] = useLocalStorage<ApiKeys>("vf_api_keys", {
     pexels: import.meta.env.VITE_PEXELS_API_KEY || "",
     pixabay: import.meta.env.VITE_PIXABAY_API_KEY || "",
     gemini: import.meta.env.VITE_GEMINI_API_KEY || "",
+    coverr: import.meta.env.VITE_COVERR_API_KEY || "",
+    freesound: import.meta.env.VITE_FREESOUND_API_KEY || "",
   });
-  const [globalOrientation, setGlobalOrientation] =
-    useState<GlobalState["orientation"]>("landscape");
-  const [globalVibe, setGlobalVibe] = useState<GlobalState["vibe"]>("none");
 
-  // App Logic State
-  const [script, setScript] = useLocalStorage("vf_script", "");
-  const [parsedScenes, setParsedScenes] = useState<Scene[]>([]);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [loadingSceneIds, setLoadingSceneIds] = useState<{
-    [key: number]: boolean;
-  }>({});
-  const [useAI, setUseAI] = useState(false);
+  const [enabledSources, setEnabledSources] = useLocalStorage<EnabledSources>(
+    "vf_enabled_sources",
+    {
+      pexels: true,
+      pixabay: true,
+      coverr: true,
+      freesound: true,
+    }
+  );
+
+  const [globalOrientation, setGlobalOrientation] =
+    useLocalStorage<Orientation>("vf_orientation", "landscape");
+  const [globalVibe, setGlobalVibe] = useLocalStorage<Vibe>("vf_vibe", "none");
+  const [globalColorGrade, setGlobalColorGrade] = useLocalStorage<ColorGrade>(
+    "vf_color",
+    "none"
+  );
 
   // Playback State
   const [isCinemaOpen, setIsCinemaOpen] = useState(false);
-  const [playbackProgress, setPlaybackProgress] = useState(0);
-  const [playbackIndex, setPlaybackIndex] = useState(0);
   const [playbackQueue, setPlaybackQueue] = useState<Scene[]>([]);
+  const [playbackIndex, setPlaybackIndex] = useState(0);
+  const [playbackProgress, setPlaybackProgress] = useState(0);
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const [useTTS, setUseTTS] = useState(true);
+  const [useTTS, setUseTTS] = useState(false);
 
-  // Load saved state (simulated)
-  // Real app might want to persist selected videos in localStorage too
+  // Pagination / Loading States
+  const [loadingSceneIds, setLoadingSceneIds] = useState<
+    Record<number, boolean>
+  >({});
+
+  // AI Toggle
+  const [useAI, setUseAI] = useLocalStorage<boolean>("vf_use_ai", false);
+  const [isExporting, setIsExporting] = useState(false);
+
+  // --- Logic & Handlers (Matches previous App.tsx logic) ---
 
   const handleProcessScript = async () => {
     if (!script.trim()) return;
+
+    // Basic validation
+    if (!apiKeys.pexels && !apiKeys.pixabay) {
+      addToast("Missing API Keys! Configure them in Settings.", "error");
+      setIsSettingsOpen(true);
+      return;
+    }
+
     setIsProcessing(true);
-    setParsedScenes([]);
+    setParsedScenes([]); // Clear previous results
 
-    const rawScenes = parseScript(script);
+    try {
+      const initialScenes = parseScript(script);
+      const processedScenes: Scene[] = [];
 
-    // Process each scene
-    const updatedScenes = await Promise.all(
-      rawScenes.map(async (scene) => {
-        // Skip audio cues for searching (but keep in list)
-        if (scene.type === "AUDIO") return scene;
+      for (const scene of initialScenes) {
+        let query = extractKeywords(scene.originalLine);
 
-        let query = "";
-        let isAiGenerated = false;
-
+        // AI Enhancement
         if (useAI && apiKeys.gemini) {
           const aiQuery = await fetchGeminiQuery(
             scene.originalLine,
-            apiKeys.gemini
+            apiKeys.gemini,
+            "metaphorical"
           );
           if (aiQuery) {
             query = aiQuery;
-            isAiGenerated = true; // Flag for UI glow
-          } else {
-            query = extractKeywords(scene.originalLine);
+            scene.isAiGenerated = true;
           }
-        } else {
-          query = extractKeywords(scene.originalLine);
         }
 
-        const videos = await searchVideos(
+        scene.query = query;
+
+        if (scene.type === "AUDIO") {
+          // Fetch Audio
+          if (apiKeys.freesound && enabledSources.freesound) {
+            const audioOptions = await searchFreesound(
+              query,
+              apiKeys.freesound,
+              1
+            );
+            processedScenes.push({
+              ...scene,
+              audioOptions,
+              selectedAudio: audioOptions[0],
+            });
+          } else {
+            // Keep it but no results
+            processedScenes.push(scene);
+          }
+          continue;
+        }
+
+        // Fetch Videos
+        // Note: In a real app we might batch these or do them lazily as the user scrolls
+        // to avoid hitting rate limits immediately for long scripts.
+        const options = await searchVideos(
           query,
           globalVibe,
           globalOrientation,
-          apiKeys
+          {
+            pexels: enabledSources.pexels ? apiKeys.pexels : "",
+            pixabay: enabledSources.pixabay ? apiKeys.pixabay : "",
+            coverr: enabledSources.coverr ? apiKeys.coverr : "",
+          },
+          1, // Page 1
+          globalColorGrade
         );
 
-        return {
+        processedScenes.push({
           ...scene,
-          query,
-          isAiGenerated,
-          options: videos,
-          selectedVideo: videos.length > 0 ? videos[0] : undefined,
-        };
-      })
-    );
+          options,
+          selectedVideo: options[0], // Auto-select first option
+        });
+      }
 
-    setParsedScenes(updatedScenes);
-    setIsProcessing(false);
+      setParsedScenes(processedScenes);
+      addToast(
+        `Generated ${processedScenes.length} scenes successfully!`,
+        "success"
+      );
+    } catch (error) {
+      console.error(error);
+      addToast("Failed to process script. Check console.", "error");
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleSelectVideo = useCallback(
@@ -116,8 +185,13 @@ function App() {
         query,
         globalVibe,
         globalOrientation,
-        apiKeys,
-        nextPage
+        {
+          pexels: enabledSources.pexels ? apiKeys.pexels : "",
+          pixabay: enabledSources.pixabay ? apiKeys.pixabay : "",
+          coverr: enabledSources.coverr ? apiKeys.coverr : "",
+        },
+        nextPage,
+        globalColorGrade
       );
 
       setParsedScenes((prev) =>
@@ -133,7 +207,7 @@ function App() {
       );
       setLoadingSceneIds((prev) => ({ ...prev, [sceneId]: false }));
     },
-    [globalVibe, globalOrientation, apiKeys]
+    [globalVibe, globalOrientation, apiKeys, globalColorGrade, enabledSources]
   );
 
   const handleDurationChange = useCallback(
@@ -150,111 +224,102 @@ function App() {
   const handleClear = useCallback(() => {
     setScript("");
     setParsedScenes([]);
-  }, [setScript]);
+    addToast("Workspace Cleared", "info");
+  }, [setScript, addToast]);
 
-  // --- PLAYBACK LOGIC ---
-
+  // --- Playback Logic ---
   const startPlayback = () => {
-    // Filter only scenes with visuals and a selected video
-    const queue = parsedScenes.filter(
-      (s) => s.type === "VISUAL" && s.selectedVideo
+    const validScenes = parsedScenes.filter(
+      (s) => s.type === "VISUAL" || s.type === "DIALOGUE" || s.type === "AUDIO"
     );
-    if (queue.length === 0) {
-      alert("No visual scenes selected!");
+    if (validScenes.length === 0) {
+      addToast("No scenes selected!", "error");
       return;
     }
-    setPlaybackQueue(queue);
+
+    setPlaybackQueue(validScenes);
     setPlaybackIndex(0);
     setIsCinemaOpen(true);
-    playSequence(0, queue);
   };
 
-  const playSequence = useCallback(
-    (index: number, queue: Scene[]) => {
-      if (index >= queue.length) {
-        // Loop
-        playSequence(0, queue);
-        return;
-      }
-
-      setPlaybackIndex(index);
-      setPlaybackProgress(0);
-      const scene = queue[index];
-      const duration = scene.cutDuration || 4;
-
-      // TTS
-      window.speechSynthesis.cancel();
-      if (useTTS) {
-        const utterance = new SpeechSynthesisUtterance(scene.originalLine);
-        utterance.rate = 1.1;
-        utterance.pitch = 0.9;
-        utterance.onstart = () => setIsSpeaking(true);
-        utterance.onend = () => setIsSpeaking(false);
-        window.speechSynthesis.speak(utterance);
-      }
-
-      // Progress Bar Animation (approximate)
-      const interval = 50; // ms
-      const steps = (duration * 1000) / interval;
-      let currentStep = 0;
-
-      const timerId = setInterval(() => {
-        currentStep++;
-        const matchPercent = (currentStep / steps) * 100;
-        setPlaybackProgress(Math.min(matchPercent, 100));
-
-        if (currentStep >= steps) {
-          clearInterval(timerId);
-          playSequence(index + 1, queue);
-        }
-      }, interval);
-
-      // Store timer ID to clear if modal closes?
-      // Simplified for this demo: we rely on effect cleanup or modal state to ignore logic,
-      // but strictly speaking we should clear interval on unmount/close.
-      // For React, we'd typically use a useEffect for the ACTIVE clip.
-      // Refactoring to useEffect based approach below would be cleaner but this function-chaining works for simple MVP.
-      // See "cleanup" via a ref if needed.
-
-      (window as any)._vf_timer = timerId; // Hacky ref for cleanup
-    },
-    [useTTS]
-  );
-
+  // Simple interval playback controller (Centralized)
   useEffect(() => {
-    if (!isCinemaOpen) {
-      window.speechSynthesis.cancel();
-      if ((window as any)._vf_timer) clearInterval((window as any)._vf_timer);
+    let interval: ReturnType<typeof setInterval>;
+    if (isCinemaOpen && playbackQueue.length > 0) {
+      // Current scene
+      const currentScene = playbackQueue[playbackIndex];
+      if (!currentScene) return;
+
+      const durationMs = currentScene.cutDuration * 1000;
+      const tickRate = 100; // Update progress every 100ms
+      let elapsed = 0;
+
+      // Reset progress on index change
+      setPlaybackProgress(0);
+
+      // TTS Trigger
+      if (useTTS && !isSpeaking && elapsed === 0) {
+        // Simple mock TTS trigger
+        if ("speechSynthesis" in window) {
+          const u = new SpeechSynthesisUtterance(currentScene.originalLine);
+          u.onstart = () => setIsSpeaking(true);
+          u.onend = () => setIsSpeaking(false);
+          window.speechSynthesis.speak(u);
+        }
+      }
+
+      interval = setInterval(() => {
+        elapsed += tickRate;
+        setPlaybackProgress((elapsed / durationMs) * 100);
+
+        if (elapsed >= durationMs) {
+          // Next scene
+          if (playbackIndex < playbackQueue.length - 1) {
+            setPlaybackIndex((prev) => prev + 1);
+            elapsed = 0;
+          } else {
+            // End
+            setIsCinemaOpen(false);
+            clearInterval(interval);
+          }
+        }
+      }, tickRate);
     }
-  }, [isCinemaOpen]);
+    return () => {
+      if (interval) clearInterval(interval);
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+    };
+  }, [isCinemaOpen, playbackIndex, playbackQueue, useTTS, isSpeaking]);
 
-  const handleExport = () => {
-    const queue = parsedScenes.filter((s) => s.selectedVideo);
-    let content = "VISUAL FLOW // VIDEO MANIFEST\n";
-    content += "Generated on: " + new Date().toLocaleString() + "\n";
-    content += "Aesthetic: " + globalVibe.toUpperCase() + "\n";
-    content += "Format: " + globalOrientation.toUpperCase() + "\n";
-    content += "========================================\n\n";
+  const handleExport = useCallback(async () => {
+    if (parsedScenes.length === 0) return;
+    setIsExporting(true);
+    addToast("Bundling Project Files...", "info");
+    try {
+      const { createExportPackage } = await import("./services/nleExport");
+      const blob = await createExportPackage(parsedScenes);
 
-    queue.forEach((scene, idx) => {
-      content += `SCENE ${idx + 1}: ${scene.originalLine}\n`;
-      content += `DURATION: ${scene.cutDuration}s\n`;
-      content += `QUERY: ${scene.query}\n`;
-      content += `SOURCE: ${scene.selectedVideo?.source} // LINK: ${scene.selectedVideo?.url}\n`;
-      content += "----------------------------------------\n";
-    });
-
-    const blob = new Blob([content], { type: "text/plain" });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `manifest_${Date.now()}.txt`;
-    a.click();
-    window.URL.revokeObjectURL(url);
-  };
+      // Trigger Download
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "VisualFlow_Project.zip";
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      addToast("Export Downloaded Successfully!", "success");
+    } catch (error) {
+      console.error("Export Failed", error);
+      addToast("Export Failed. See console.", "error");
+    } finally {
+      setIsExporting(false);
+    }
+  }, [parsedScenes, addToast]);
 
   return (
-    <div className="min-h-screen flex flex-col overflow-x-hidden font-sans">
+    <div className="min-h-screen bg-black text-white font-sans selection:bg-vf-lime selection:text-black">
       <Navbar
         onOpenSettings={() => setIsSettingsOpen(true)}
         onExport={handleExport}
@@ -267,6 +332,10 @@ function App() {
         onClose={() => setIsSettingsOpen(false)}
         apiKeys={apiKeys}
         onSave={setApiKeys}
+        enabledSources={enabledSources}
+        onToggleSource={(source: keyof EnabledSources, enabled: boolean) =>
+          setEnabledSources((prev) => ({ ...prev, [source]: enabled }))
+        }
       />
 
       <CinemaModal
@@ -274,6 +343,7 @@ function App() {
         onClose={() => setIsCinemaOpen(false)}
         currentScene={playbackQueue[playbackIndex] || null}
         currentVideo={playbackQueue[playbackIndex]?.selectedVideo}
+        currentAudio={playbackQueue[playbackIndex]?.selectedAudio} // NEW
         progress={playbackProgress}
         currentIndex={playbackIndex}
         totalCount={playbackQueue.length}
@@ -282,7 +352,7 @@ function App() {
         isSpeaking={isSpeaking}
       />
 
-      <main className="flex-grow max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 sm:py-8 flex flex-col gap-8">
+      <main className="grow max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 sm:py-8 flex flex-col gap-8">
         {/* Top Section */}
         <section className="w-full flex flex-col gap-6 order-1">
           <ScriptInput
@@ -302,7 +372,11 @@ function App() {
             onOrientationChange={setGlobalOrientation}
             vibe={globalVibe}
             onVibeChange={setGlobalVibe}
+            colorGrade={globalColorGrade}
+            onColorGradeChange={setGlobalColorGrade}
             onClear={handleClear}
+            onExport={handleExport}
+            isExporting={isExporting}
           />
 
           <ResultsGrid
@@ -316,8 +390,16 @@ function App() {
         </section>
       </main>
 
-      {/* Toast (Simplified for MVP as just console/alert for now, could add designated component) */}
+      <ToastContainer />
     </div>
+  );
+};
+
+function App() {
+  return (
+    <ToastProvider>
+      <AppContent />
+    </ToastProvider>
   );
 }
 

@@ -1,4 +1,4 @@
-import React, { memo } from "react";
+import React from "react";
 import { FaMagic, FaClock, FaPlusCircle, FaSpinner } from "react-icons/fa";
 import type { Scene, Orientation, VideoResult } from "../types";
 import { VideoCard } from "./VideoCard";
@@ -13,7 +13,7 @@ interface SceneRowProps {
   isLoadingMore: boolean;
 }
 
-export const SceneRow: React.FC<SceneRowProps> = memo(
+export const SceneRow: React.FC<SceneRowProps> = React.memo(
   ({
     scene,
     index,
@@ -80,7 +80,7 @@ export const SceneRow: React.FC<SceneRowProps> = memo(
 
               {/* Duration Slider */}
               <div
-                className="flex items-center gap-2 bg-neutral-900 border border-neutral-800 px-2 py-1 rounded w-32"
+                className="hidden lg:flex items-center gap-2 bg-neutral-900 border border-neutral-800 px-2 py-1 rounded w-32"
                 title="Set clip duration for preview"
               >
                 <FaClock className="text-xs text-neutral-500" />
