@@ -1,5 +1,5 @@
 import React from "react";
-import { FaFileExport, FaPalette } from "react-icons/fa";
+import { FaPalette } from "react-icons/fa";
 import type { Orientation, Vibe, ColorGrade } from "../types";
 
 interface ControlBarProps {
@@ -10,8 +10,6 @@ interface ControlBarProps {
   colorGrade: ColorGrade;
   onColorGradeChange: (c: ColorGrade) => void;
   onClear: () => void;
-  onExport: () => void;
-  isExporting: boolean;
 }
 
 export const ControlBar: React.FC<ControlBarProps> = ({
@@ -22,8 +20,6 @@ export const ControlBar: React.FC<ControlBarProps> = ({
   colorGrade,
   onColorGradeChange,
   onClear,
-  onExport,
-  isExporting,
 }) => {
   const colorOptions: { value: ColorGrade; label: string; color: string }[] = [
     { value: "none", label: "Nat", color: "#666" },
@@ -41,24 +37,13 @@ export const ControlBar: React.FC<ControlBarProps> = ({
           <span className="text-vf-lime mr-2">///</span> Timeline
         </h2>
 
-        <div className="flex items-center gap-4">
-          <button
-            onClick={onExport}
-            disabled={isExporting}
-            className="flex items-center gap-2 text-[10px] font-mono font-bold uppercase tracking-wider bg-neutral-800 hover:bg-neutral-700 text-vf-cyan px-3 py-1.5 rounded transition-all disabled:opacity-50"
-            title="Download Project Files for Premiere Pro"
-          >
-            <FaFileExport /> {isExporting ? "BUNDLING..." : "EXPORT XML"}
-          </button>
-
-          <button
-            onClick={onClear}
-            className="text-[10px] font-mono text-neutral-500 hover:text-red-500 uppercase tracking-wider transition-colors"
-            title="Wipe all results and reset"
-          >
-            [CLEAR_BUFFER]
-          </button>
-        </div>
+        <button
+          onClick={onClear}
+          className="text-[10px] font-mono text-neutral-500 hover:text-red-500 uppercase tracking-wider transition-colors"
+          title="Wipe all results and reset"
+        >
+          [CLEAR_BUFFER]
+        </button>
       </div>
 
       {/* Global Filters */}

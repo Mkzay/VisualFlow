@@ -26,6 +26,11 @@
   ::-webkit-scrollbar-thumb:hover {
     background: #ccff00;
   }
+
+  /* Pointer cursor for all buttons */
+  button {
+    cursor: pointer;
+  }
 }
 
 @layer components {

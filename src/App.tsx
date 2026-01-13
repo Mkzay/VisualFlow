@@ -323,6 +323,7 @@ const AppContent: React.FC = () => {
         onExport={handleExport}
         onPlay={startPlayback}
         hasSelections={parsedScenes.some((s) => s.selectedVideo)}
+        isExporting={isExporting}
       />
 
       <SettingsModal
@@ -373,8 +374,6 @@ const AppContent: React.FC = () => {
             colorGrade={globalColorGrade}
             onColorGradeChange={setGlobalColorGrade}
             onClear={handleClear}
-            onExport={handleExport}
-            isExporting={isExporting}
           />
 
           <ResultsGrid
@@ -387,6 +386,19 @@ const AppContent: React.FC = () => {
           />
         </section>
       </main>
+
+      {/* Footer Signature */}
+      <footer className="fixed bottom-4 right-4 text-[10px] font-mono text-neutral-700 hover:text-neutral-500 transition-colors">
+        crafted by{" "}
+        <a
+          href="https://github.com/Mkzay"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-vf-lime/50 hover:text-vf-lime transition-colors"
+        >
+          Mkzay
+        </a>
+      </footer>
 
       <ToastContainer />
     </div>

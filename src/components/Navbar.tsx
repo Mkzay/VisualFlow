@@ -6,6 +6,7 @@ interface NavbarProps {
   onExport: () => void;
   onPlay: () => void;
   hasSelections: boolean;
+  isExporting?: boolean;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -13,6 +14,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onExport,
   onPlay,
   hasSelections,
+  isExporting = false,
 }) => {
   return (
     <nav className="border-b border-vf-border bg-black/95 backdrop-blur-md sticky top-0 z-50">
@@ -44,7 +46,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </button>
                 <button
                   onClick={onExport}
-                  className="bg-neutral-800 hover:bg-neutral-700 text-white px-3 py-1.5 sm:px-4 sm:py-2 rounded text-[10px] sm:text-xs font-mono uppercase border border-neutral-700 transition-all flex items-center gap-2 animate-fade-in"
+                  disabled={isExporting}
+                  className="bg-neutral-800 hover:bg-neutral-700 text-white px-3 py-1.5 sm:px-4 sm:py-2 rounded text-[10px] sm:text-xs font-mono uppercase border border-neutral-700 transition-all flex items-center gap-2 animate-fade-in disabled:opacity-50"
                 >
                   <FaFileExport />{" "}
                   <span className="hidden sm:inline">Export</span>
