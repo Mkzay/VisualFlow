@@ -115,18 +115,30 @@ export const fetchGeminiQuery = async (
 
   const prompt = mode === "metaphorical" ? metaphoricalPrompt : literalPrompt;
 
+  // 8-second timeout to prevent hanging on long scripts
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 8000);
+
   try {
     const response = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+      signal: controller.signal,
     });
+
+    clearTimeout(timeoutId);
 
     if (!response.ok) throw new Error("Gemini API Failed");
     const data = await response.json();
     return data.candidates[0].content.parts[0].text.trim().replace(/['"]/g, "");
   } catch (error) {
-    console.warn("Gemini Error:", error);
+    clearTimeout(timeoutId);
+    if ((error as Error).name === "AbortError") {
+      console.warn("[Gemini] Request timed out for:", scriptLine.slice(0, 50));
+    } else {
+      console.warn("Gemini Error:", error);
+    }
     return null;
   }
 };
@@ -229,45 +241,54 @@ export const searchCoverr = async (
   apiKey: string | undefined,
   page: number = 1
 ): Promise<VideoResult[]> => {
-  // Coverr doesn't always require a key for public endpoints, but good to have if needed/auth changes.
-  // Using a simplified fetch if no key, or just attempting.
-  // Note: Coverr's public API structure might differ. Assuming standard listing for now or falling back.
-  // If no official public API doc is free without auth, we might relying on their search endpoint if open,
-  // but for this implementation we assume a standard GET with optional auth.
-
-  // REALITY CHECK: Coverr's API usually requires an API key.
+  // Coverr API requires an API key
   if (!apiKey) return [];
 
   try {
-    const response = await fetch(
-      `${COVERR_API_URL}?query=${encodeURIComponent(
-        query
-      )}&page=${page}&urls=true`,
-      {
-        headers: { Authorization: `Bearer ${apiKey}` },
-      }
-    );
+    // Per Coverr docs: use ?query= for search, api_key for auth
+    const url = `${COVERR_API_URL}?query=${encodeURIComponent(
+      query
+    )}&page=${page}&urls=true&api_key=${apiKey}`;
+    console.log("[Coverr] Fetching:", url.replace(apiKey, "***")); // Debug log (hide key)
 
-    if (!response.ok) return [];
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      console.warn("[Coverr] Response not OK:", response.status);
+      return [];
+    }
+
     // Coverr Response Type
     const data = await response.json();
-    return (data.hits || []).map(
+    console.log("[Coverr] Full Response:", data);
+
+    // Coverr API may return videos in different fields
+    const videos = data.hits || data.videos || data.results || [];
+    console.log("[Coverr] Videos found:", videos.length);
+
+    return videos.map(
       (
         v: {
           id: string;
           thumbnail: string;
+          poster: string;
           duration: number;
           url: string;
-          urls: { mp4: string; mp4_download: string };
+          urls?: { mp4?: string; mp4_download?: string };
+          playback_id?: string;
         },
         index: number
       ) => ({
         id: `COVERR-${v.id}-${index}`,
-        source: "COVERR",
-        image: v.thumbnail || "",
+        source: "COVERR" as const,
+        image: v.thumbnail || v.poster || "",
         duration: v.duration || 15,
-        url: v.url,
-        videoSrc: v.urls?.mp4 || v.urls?.mp4_download || "",
+        url: v.url || `https://coverr.co/videos/${v.id}`,
+        // Try multiple possible video URL locations
+        videoSrc:
+          v.urls?.mp4 ||
+          v.urls?.mp4_download ||
+          (v.playback_id ? `https://stream.mux.com/${v.playback_id}.m3u8` : ""),
       })
     );
   } catch (error) {

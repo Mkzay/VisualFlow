@@ -44,7 +44,7 @@ const AppContent: React.FC = () => {
     {
       pexels: true,
       pixabay: true,
-      coverr: true,
+      coverr: false, // Disabled by default - limited free library
       freesound: true,
     }
   );
@@ -91,12 +91,12 @@ const AppContent: React.FC = () => {
 
     try {
       const initialScenes = parseScript(script);
-      const processedScenes: Scene[] = [];
 
-      for (const scene of initialScenes) {
+      // Helper: Process a single scene
+      const processScene = async (scene: Scene): Promise<Scene> => {
         let query = extractKeywords(scene.originalLine);
 
-        // AI Enhancement
+        // AI Enhancement with timeout fallback
         if (useAI && apiKeys.gemini) {
           const aiQuery = await fetchGeminiQuery(
             scene.originalLine,
@@ -112,28 +112,18 @@ const AppContent: React.FC = () => {
         scene.query = query;
 
         if (scene.type === "AUDIO") {
-          // Fetch Audio
           if (apiKeys.freesound && enabledSources.freesound) {
             const audioOptions = await searchFreesound(
               query,
               apiKeys.freesound,
               1
             );
-            processedScenes.push({
-              ...scene,
-              audioOptions,
-              selectedAudio: audioOptions[0],
-            });
-          } else {
-            // Keep it but no results
-            processedScenes.push(scene);
+            return { ...scene, audioOptions, selectedAudio: audioOptions[0] };
           }
-          continue;
+          return scene;
         }
 
         // Fetch Videos
-        // Note: In a real app we might batch these or do them lazily as the user scrolls
-        // to avoid hitting rate limits immediately for long scripts.
         const options = await searchVideos(
           query,
           globalVibe,
@@ -143,20 +133,28 @@ const AppContent: React.FC = () => {
             pixabay: enabledSources.pixabay ? apiKeys.pixabay : "",
             coverr: enabledSources.coverr ? apiKeys.coverr : "",
           },
-          1, // Page 1
+          1,
           globalColorGrade
         );
 
-        processedScenes.push({
-          ...scene,
-          options,
-          selectedVideo: options[0], // Auto-select first option
-        });
+        return { ...scene, options, selectedVideo: options[0] };
+      };
+
+      // Process in batches of 3 for parallelism without overwhelming APIs
+      const BATCH_SIZE = 3;
+      const allResults: Scene[] = [];
+
+      for (let i = 0; i < initialScenes.length; i += BATCH_SIZE) {
+        const batch = initialScenes.slice(i, i + BATCH_SIZE);
+        const batchResults = await Promise.all(batch.map(processScene));
+        allResults.push(...batchResults);
+
+        // Progressive update: Show results as they come in
+        setParsedScenes([...allResults]);
       }
 
-      setParsedScenes(processedScenes);
       addToast(
-        `Generated ${processedScenes.length} scenes successfully!`,
+        `Generated ${allResults.length} scenes successfully!`,
         "success"
       );
     } catch (error) {
